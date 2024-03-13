@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <title>WASM</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <script type="module">
+    function getRandomInt(min, max) {
+      const minCeiled = Math.ceil(min);
+      const maxFloored = Math.floor(max);
+      return Math.floor(Math.random() * (maxFloored - minCeiled) + minCeiled); // The maximum is exclusive and the minimum is inclusive
+    }
+
+    async function wasmInstance() {
+      const {instance} = await WebAssembly.instantiateStreaming(
+        fetch("./main.wasm"),
+        {
+          "env": {
+            "random_num": () => getRandomInt(0x00000000, 0xFFFFFFFF)
+          }
+        }
+      );
+      return instance;
+    }
+
+
+    async function main() {
+      const instance = await wasmInstance();
+      console.log(instance)
+      const {memory, js_malloc, draw_in_arr} = instance.exports;
+      const HEIGHT = 120;
+      const WIDTH = 120;
+
+      const size = HEIGHT * WIDTH
+      //
+      const cnv = document.getElementById('cnv');
+      cnv.height = HEIGHT
+      cnv.width = WIDTH
+
+      const ctx = cnv.getContext("2d");
+      //
+      const arr_ptr = js_malloc(size);
+      const arr = new Uint8ClampedArray(
+        memory.buffer,
+        arr_ptr,
+        size * 4
+      )
+      const data = new ImageData(arr, HEIGHT, WIDTH)
+
+      function draw(height, width, invert) {
+        draw_in_arr(arr_ptr, height, width);
+        ctx.putImageData(data, 0, 0)
+      }
+
+      let cnt = 0;
+      setInterval(function () {
+        cnt++;
+        const start = Date.now();
+        draw(HEIGHT, WIDTH, cnt % 2);
+        t.innerText = "Frame time:" + (Date.now() - start) + "ms";
+        g.innerText = "Generation: " + cnt.toString()
+      }, 100);
+    }
+
+    main();
+  </script>
+</head>
+
+<body>
+  <div style="display:flex">
+    <span id="t"></span>
+    <span style="margin-left:auto;" id="g"></span>
+  </div>
+  <canvas id="cnv" style="image-rendering: pixelated;height: 400px; width:400px;">
+  </canvas>
+</body>
+
+</html>
